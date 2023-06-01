@@ -73,7 +73,7 @@ int main(void)
 	int i = 0;
 	// My sinus lookup table
 	uint32_t sinus_lut[]={
-		2047,3363,4063,3820,2747,1347,274,31,731,2047
+		2047,2712,3305,3761,4032,4088,3922,3553,3022,2384,1710,1072,541,172,6,62,333,789,1382,2047
 	};
 	// Calculate the number of elements in my sinus lookup table
 	int n = 0;
