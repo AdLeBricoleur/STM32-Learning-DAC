@@ -69,8 +69,24 @@ static void MX_DAC1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  int i = 0;
-  uint32_t DAC_OUT[5] = {0, 1024, 2048, 3071, 4095};
+	// My loop increment for
+	int i = 0;
+	// My sinus lookup table
+	uint32_t sinus_lut[]={
+		2047,4095,2047,0,2047
+	};
+	// Calculate the number of elements in my sinus lookup table
+	int n = 0;
+	n = sizeof(sinus_lut)/sizeof(uint32_t);
+	// I don't take the last element because it is equal to the first
+	n -= 1;
+	// Calculate the theoretical delay according to the number of samples and the desired frequency
+	uint32_t tempo_ms = 0;
+	int frequence_hz = 10;
+	tempo_ms = 1000/(n*frequence_hz);
+	// Add compensation to the delay to have a better result in practice
+	tempo_ms -= 1;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -102,14 +118,15 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-	for(i=0;i<5;i++)
+	for(i=0;i<n;i++)
 	{
-		// Set DAC value
-		HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, DAC_OUT[i]);
-		// Wait 50 ms
-		HAL_Delay(50);
+		// Set DAC value (during about 1 ms)
+		HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, sinus_lut[i]);
+		// Wait
+		HAL_Delay(tempo_ms);
 	}
+	  /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
