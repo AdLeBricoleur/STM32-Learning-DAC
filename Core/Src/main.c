@@ -41,6 +41,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 DAC_HandleTypeDef hdac1;
+DMA_HandleTypeDef hdma_dac_ch1;
+
+TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
 
@@ -51,8 +54,10 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_DAC1_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -69,23 +74,15 @@ static void MX_DAC1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	// My loop increment for
-	int i = 0;
 	// My sinus lookup table
 	uint32_t sinus_lut[]={
-		2047,2375,2695,2999,3277,3524,3732,3897,4014,4080,4093,4053,3961,3820,3633,3405,3141,2850,2537,2212,1882,1557,1244,953,689,461,274,133,41,1,14,80,197,362,570,817,1095,1399,1719,2047
+		2047,2147,2248,2347,2446,2545,2641,2737,2831,2922,3012,3100,3185,3267,3346,3422,3495,3564,3630,3692,3749,3803,3853,3898,3939,3975,4006,4033,4055,4072,4085,4092,4095,4092,4085,4072,4055,4033,4006,3975,3939,3898,3853,3803,3749,3692,3630,3564,3495,3422,3346,3267,3185,3100,3012,2922,2831,2737,2641,2545,2446,2347,2248,2147,2047,1947,1846,1747,1648,1549,1453,1357,1263,1172,1082,994,909,827,748,672,599,530,464,402,345,291,241,196,155,119,88,61,39,22,9,2,0,2,9,22,39,61,88,119,155,196,241,291,345,402,464,530,599,672,748,827,909,994,1082,1172,1263,1357,1453,1549,1648,1747,1846,1947,2047
 	};
 	// Calculate the number of elements in my sinus lookup table
 	int n = 0;
 	n = sizeof(sinus_lut)/sizeof(uint32_t);
 	// I don't take the last element because it is equal to the first
 	n -= 1;
-	// Calculate the theoretical delay according to the number of samples and the desired frequency
-	uint32_t tempo_ms = 0;
-	int frequence_hz = 10;
-	tempo_ms = 1000/(n*frequence_hz);
-	// Add compensation to the delay to have a better result in practice
-	tempo_ms -= 1;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -106,25 +103,21 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_DAC1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  // Start DAC
-  HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+  // Start DAC with DMA
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)sinus_lut, (uint32_t)n, DAC_ALIGN_12B_R);
+  HAL_TIM_Base_Start(&htim2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	for(i=0;i<n;i++)
-	{
-		// Set DAC value (during about 1 ms)
-		HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, sinus_lut[i]);
-		// Wait
-		HAL_Delay(tempo_ms);
-	}
-	  /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
@@ -209,7 +202,7 @@ static void MX_DAC1_Init(void)
   /** DAC channel OUT1 config
   */
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_T2_TRGO;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
@@ -220,6 +213,51 @@ static void MX_DAC1_Init(void)
   /* USER CODE BEGIN DAC1_Init 2 */
 
   /* USER CODE END DAC1_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 624;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -255,6 +293,22 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
 
