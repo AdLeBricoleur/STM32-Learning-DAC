@@ -73,7 +73,7 @@ int main(void)
 	int i = 0;
 	// My sinus lookup table
 	uint32_t sinus_lut[]={
-		2047,2712,3305,3761,4032,4088,3922,3553,3022,2384,1710,1072,541,172,6,62,333,789,1382,2047
+		2047,2375,2695,2999,3277,3524,3732,3897,4014,4080,4093,4053,3961,3820,3633,3405,3141,2850,2537,2212,1882,1557,1244,953,689,461,274,133,41,1,14,80,197,362,570,817,1095,1399,1719,2047
 	};
 	// Calculate the number of elements in my sinus lookup table
 	int n = 0;
@@ -86,7 +86,6 @@ int main(void)
 	tempo_ms = 1000/(n*frequence_hz);
 	// Add compensation to the delay to have a better result in practice
 	tempo_ms -= 1;
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
