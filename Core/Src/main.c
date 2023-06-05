@@ -72,8 +72,7 @@ static void MX_ADC1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	uint32_t value_adc=0;
-	uint32_t value_dac=0;
+  uint32_t read_adc=0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -107,18 +106,14 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  // Start ADC Conversion
-	  HAL_ADC_Start(&hadc1);
-	 // Poll ADC1 Perihperal & TimeOut = 1mSec
-	  HAL_ADC_PollForConversion(&hadc1, 1);
-	 // Read The ADC Conversion Result
-	  value_adc = HAL_ADC_GetValue(&hadc1);
-	  // Map the ADC Conversion To DAC out
-	  value_dac = value_adc;
-	  // Set the DAC out
-	  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, value_dac);
-	  // Wait 1 ms
-	  HAL_Delay(1);
+	// Start ADC Conversion
+	HAL_ADC_Start(&hadc1);
+	// Poll ADC1 Perihperal & TimeOut = 1mSec
+	HAL_ADC_PollForConversion(&hadc1, 1);
+	// Read The ADC Conversion Result
+	read_adc = HAL_ADC_GetValue(&hadc1);
+	// Set the DAC out
+	HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, read_adc);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
