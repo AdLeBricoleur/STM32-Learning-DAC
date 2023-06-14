@@ -41,21 +41,27 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 DAC_HandleTypeDef hdac1;
+DMA_HandleTypeDef hdma_dac_ch1;
+
+TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+uint32_t value[2]={0,0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_DAC1_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -72,7 +78,17 @@ static void MX_ADC1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint32_t read_adc=0;
+	// My loop increment for
+	int i = 0;
+	// My sinus lookup table (n = 128)
+	uint32_t sinus_lut[]={
+		2047,2128,2209,2289,2369,2449,2528,2606,2684,2760,2835,2909,2982,3053,3123,3191,3257,3321,3384,3444,3502,3558,3611,3662,3711,3756,3800,3840,3878,3913,3944,3973,3999,4022,4042,4059,4072,4082,4090,4094,4094,4092,4086,4078,4066,4051,4032,4011,3987,3959,3929,3895,3859,3820,3778,3734,3687,3637,3585,3530,3473,3414,3353,3289,3224,3157,3088,3018,2946,2872,2798,2722,2645,2567,2489,2409,2329,2249,2168,2087,2007,1926,1845,1765,1685,1605,1527,1449,1372,1296,1222,1148,1076,1006,937,870,805,741,680,621,564,509,457,407,360,316,274,235,199,165,135,107,83,62,43,28,16,8,2,0,0,4,12,22,35,52,72,95,121,150,181,216,254,294,338,383,432,483,536,592,650,710,773,837,903,971,1041,1112,1185,1259,1334,1410,1488,1566,1645,1725,1805,1885,1966,2047
+	};
+	// Calculate the number of elements in my sinus lookup table
+	int n = 0;
+	n = sizeof(sinus_lut)/sizeof(uint32_t);
+	// I don't take the last element because it is equal to the first
+	n -= 1;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -93,12 +109,15 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_DAC1_Init();
   MX_ADC1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  // Start DAC
-  HAL_DAC_Start(&hdac1,DAC_CHANNEL_1);
+  // Start DAC with DMA
+  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)sinus_lut, n, DAC_ALIGN_12B_R);
+  HAL_TIM_Base_Start(&htim2);
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   /* USER CODE END 2 */
 
@@ -106,14 +125,32 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	// Start ADC Conversion
-	HAL_ADC_Start(&hadc1);
-	// Poll ADC1 Perihperal & TimeOut = 1mSec
-	HAL_ADC_PollForConversion(&hadc1, 1);
-	// Read The ADC Conversion Result
-	read_adc = HAL_ADC_GetValue(&hadc1);
-	// Set the DAC out
-	HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, read_adc);
+	if(i==0)
+	{
+		// Set
+		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+		// read adc
+		HAL_ADC_Start_DMA(&hadc1, &value[1], 1);
+		// map it
+		i = 1;
+		// reset
+		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+	    // wait 1 ms
+	    HAL_Delay(1);
+	}
+	else
+	{
+		// Set
+		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+		// read adc
+		HAL_ADC_Start_DMA(&hadc1, &value[0], 1);
+		// map it
+		i = 0;
+		// reset
+		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+	    // wait 1 ms
+	    HAL_Delay(1);
+	}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -198,12 +235,12 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   hadc1.Init.OversamplingMode = DISABLE;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -266,7 +303,7 @@ static void MX_DAC1_Init(void)
   /** DAC channel OUT1 config
   */
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_T2_TRGO;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
@@ -277,6 +314,51 @@ static void MX_DAC1_Init(void)
   /* USER CODE BEGIN DAC1_Init 2 */
 
   /* USER CODE END DAC1_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 624;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -312,6 +394,26 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA2_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Channel3_IRQn);
 
 }
 
